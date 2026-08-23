@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NetSage AI - Network Troubleshooting Assistant</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --accent: #38bdf8;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #334155;
+            --success: #22c55e;
+            --warning: #eab308;
+            --danger: #ef4444;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        header h1 {
+            color: var(--accent);
+            margin-bottom: 5px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: var(--accent);
+            font-size: 0.9rem;
+        }
+        textarea, input[type="text"] {
+            width: 100%;
+            background: #0b0f19;
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-family: monospace;
+            box-sizing: border-box;
+            margin-bottom: 12px;
+        }
+        textarea { height: 90px; resize: vertical; }
+        button {
+            background-color: var(--accent);
+            color: #0f172a;
+            border: none;
+            padding: 12px 20px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+            transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.9; }
+        .output-box {
+            background: #0b0f19;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 15px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            min-height: 150px;
+            max-height: 320px;
+            overflow-y: auto;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            background: #0284c7;
+            color: white;
+            margin-bottom: 10px;
+        }
+        .loader {
+            display: none;
+            text-align: center;
+            color: var(--accent);
+            margin-top: 10px;
+        }
+        .review-panel {
+            display: none;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px dashed var(--border);
+        }
+        .edit-form-container {
+            display: none;
+            margin-top: 15px;
+            background: #0b0f19;
+            border: 1px solid var(--warning);
+            border-radius: 8px;
+            padding: 15px;
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 5px;
+        }
+        .btn-accept { background-color: var(--success); color: white; width: 100%; margin-top: 0;}
+        .btn-edit { background-color: var(--warning); color: #0f172a; width: 100%; margin-top: 0;}
+        .btn-reject { background-color: var(--danger); color: white; width: 100%; margin-top: 0;}
+        .status-msg {
+            margin-top: 10px;
+            font-weight: bold;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>NetSage AI Dashboard</h1>
+            <p>Hybrid Deterministic & AI-Powered Packet Tracer Troubleshooting</p>
+        </header>
+
+        <div class="grid">
+            <!-- Input Card -->
+            <div class="card">
+                <h2>Lab Inputs</h2>
+                <label for="symptom">User Symptom</label>
+                <textarea id="symptom" placeholder="Describe the network issue here..."></textarea>
+
+                <label for="cli" style="margin-top: 15px;">CLI Show Outputs</label>
+                <textarea id="cli" placeholder="Paste switch or router show outputs here..."></textarea>
+
+                <button onclick="runDiagnosis()">Run NetSage Diagnostics</button>
+                <div id="loader" class="loader">Analyzing Layer 1 & Layer 2 RAG... Please wait...</div>
+                
+                <div style="margin-top: 25px;">
+                    <button onclick="downloadAnalyticsReport()" style="background-color: #0284c7; color: white;">
+                        📊 Download Model Performance Analytics Report (.xlsx)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Results & Human Review Card -->
+            <div class="card">
+                <h2>Diagnostic Output & Oversight</h2>
+                <div id="resultsContent" class="output-box">
+                    Click "Run NetSage Diagnostics" to analyze configuration logs.
+                </div>
+
+                <!-- Editable Form (Appears when "Edit" is clicked) -->
+                <div id="editFormContainer" class="edit-form-container">
+                    <h3 style="color: var(--warning); margin-top: 0;">✏️ Edit AI Diagnosis Before Logging</h3>
+                    <label>Root Cause</label>
+                    <input type="text" id="editRootCause">
+                    
+                    <label>OSI Layer</label>
+                    <input type="text" id="editOsiLayer">
+
+                    <label>Confidence</label>
+                    <input type="text" id="editConfidence">
+
+                    <label>Evidence</label>
+                    <textarea id="editEvidence"></textarea>
+
+                    <label>Next Command</label>
+                    <input type="text" id="editNextCommand">
+
+                    <label>Fix Steps (One per line)</label>
+                    <textarea id="editFixSteps"></textarea>
+
+                    <button class="btn-edit" onclick="submitEditedReview()">Confirm & Log Edited Diagnosis</button>
+                    <button style="background: transparent; color: var(--text-muted); border: 1px solid var(--border); margin-top: 8px;" onclick="cancelEdit()">Cancel</button>
+                </div>
+
+                <!-- Human Review Controls -->
+                <div id="reviewPanel" class="review-panel">
+                    <label>Reviewer Notes / Comments:</label>
+                    <input type="text" id="reviewNotes" placeholder="Optional notes for this review..." style="margin-bottom: 10px;">
+                    <div class="btn-group">
+                        <button class="btn-accept" onclick="submitReview('Accepted')">✅ Accept</button>
+                        <button class="btn-edit" onclick="showEditForm()">✏️ Edit</button>
+                        <button class="btn-reject" onclick="submitReview('Rejected')">❌ Reject</button>
+                    </div>
+                </div>
+                
+                <div id="statusMsg" class="status-msg"></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+let currentDiagnosisData = null;
+
+async function runDiagnosis() {
+    const symptom = document.getElementById('symptom').value;
+    const show_outputs = document.getElementById('cli').value;
+    const loader = document.getElementById('loader');
+    const resultsBox = document.getElementById('resultsContent');
+    const reviewPanel = document.getElementById('reviewPanel');
+    const editFormContainer = document.getElementById('editFormContainer');
+    const statusMsg = document.getElementById('statusMsg');
+
+    if (!symptom.trim() || !show_outputs.trim()) {
+        alert("Please enter both a symptom and CLI outputs.");
+        return;
+    }
+
+    loader.style.display = 'block';
+    resultsBox.innerHTML = 'Running checks...';
+    reviewPanel.style.display = 'none';
+    editFormContainer.style.display = 'none';
+    statusMsg.innerHTML = '';
+
+    try {
+        const response = await fetch('/api/diagnose', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ symptom, show_outputs })
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.detail || 'Server error occurred');
+        }
+
+        currentDiagnosisData = data.diagnosis;
+
+        let html = `<span class="badge">Layer 1: Deterministic Checks</span>\n`;
+        if (data.rule_issues && data.rule_issues.length > 0) {
+            data.rule_issues.forEach(i => {
+                html += `❌ [${i.error_type}] ${i.target}: ${i.detail}\n`;
+            });
+        } else {
+            html += `✅ No hard rule violations found.\n`;
+        }
+
+        html += `\n<span class="badge">Layer 2: AI RAG & Groq Diagnosis</span>\n`;
+        html += `• Root Cause : ${data.diagnosis.root_cause}\n`;
+        html += `• OSI Layer  : ${data.diagnosis.osi_layer}\n`;
+        html += `• Confidence : ${data.diagnosis.confidence}\n`;
+        html += `• Evidence   : ${data.diagnosis.evidence}\n`;
+        html += `• Next Cmd   : ${data.diagnosis.next_command}\n\n`;
+        html += `• Fix Steps:\n`;
+        data.diagnosis.fix_steps.forEach((step, idx) => {
+            html += `  ${idx + 1}. ${step}\n`;
+        });
+
+        resultsBox.innerHTML = html;
+        reviewPanel.style.display = 'block';
+    } catch (err) {
+        resultsBox.innerHTML = `[!] Error communicating with server: ${err.message}`;
+    } finally {
+        loader.style.display = 'none';
+    }
+}
+
+function showEditForm() {
+    if (!currentDiagnosisData) return;
+
+    document.getElementById('editRootCause').value = currentDiagnosisData.root_cause;
+    document.getElementById('editOsiLayer').value = currentDiagnosisData.osi_layer;
+    document.getElementById('editConfidence').value = currentDiagnosisData.confidence;
+    document.getElementById('editEvidence').value = currentDiagnosisData.evidence;
+    document.getElementById('editNextCommand').value = currentDiagnosisData.next_command;
+    document.getElementById('editFixSteps').value = currentDiagnosisData.fix_steps.join('\n');
+
+    document.getElementById('resultsContent').style.display = 'none';
+    document.getElementById('reviewPanel').style.display = 'none';
+    document.getElementById('editFormContainer').style.display = 'block';
+}
+
+function cancelEdit() {
+    document.getElementById('editFormContainer').style.display = 'none';
+    document.getElementById('resultsContent').style.display = 'block';
+    document.getElementById('reviewPanel').style.display = 'block';
+}
+
+async function submitEditedReview() {
+    const updatedDiagnosis = {
+        root_cause: document.getElementById('editRootCause').value,
+        osi_layer: document.getElementById('editOsiLayer').value,
+        confidence: document.getElementById('editConfidence').value,
+        evidence: document.getElementById('editEvidence').value,
+        next_command: document.getElementById('editNextCommand').value,
+        fix_steps: document.getElementById('editFixSteps').value.split('\n').filter(s => s.trim() !== '')
+    };
+
+    const notes = document.getElementById('reviewNotes').value || "Human edited diagnosis values";
+    await sendReviewToServer(updatedDiagnosis, 'Edited', notes);
+}
+
+async function submitReview(status) {
+    if (!currentDiagnosisData) return;
+    const notes = document.getElementById('reviewNotes').value;
+    await sendReviewToServer(currentDiagnosisData, status, notes);
+}
+
+async function sendReviewToServer(diagnosisObj, status, notes) {
+    const symptom = document.getElementById('symptom').value;
+    const statusMsg = document.getElementById('statusMsg');
+
+    try {
+        const response = await fetch('/api/log-feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                symptom: symptom,
+                diagnosis: diagnosisObj,
+                status: status,
+                notes: notes
+            })
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+            statusMsg.style.color = 'var(--success)';
+            statusMsg.innerHTML = `Successfully logged as **${status}** with your updates!`;
+            document.getElementById('editFormContainer').style.display = 'none';
+            document.getElementById('reviewPanel').style.display = 'none';
+            document.getElementById('resultsContent').style.display = 'block';
+        } else {
+            throw new Error(result.detail || 'Failed to log feedback');
+        }
+    } catch (err) {
+        statusMsg.style.color = 'var(--danger)';
+        statusMsg.innerHTML = `Error: ${err.message}`;
+    }
+}
+
+function downloadAnalyticsReport() {
+    window.location.href = '/api/analytics/export';
+}
+</script>
+</body>
+</html>
