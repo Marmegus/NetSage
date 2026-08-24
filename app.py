@@ -9,12 +9,12 @@ import matplotlib
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
+import pandas as pd
+import mysql.connector
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
-
-import pandas as pd
 from dotenv import load_dotenv
 from groq import Groq
 
@@ -50,42 +50,124 @@ client = Groq(
 
 
 # ============================================================
-# FILE CONFIGURATION
+# MYSQL CONFIGURATION
 # ============================================================
 
-os.makedirs("logs", exist_ok=True)
+MYSQL_HOST = os.environ.get("MYSQL_HOST")
+MYSQL_PORT = int(os.environ.get("MYSQL_PORT", "3306"))
+MYSQL_DATABASE = os.environ.get("MYSQL_DATABASE")
+MYSQL_USER = os.environ.get("MYSQL_USER")
+MYSQL_PASSWORD = os.environ.get("MYSQL_PASSWORD")
 
-EXCEL_FILE = "logs/ai_review_log.xlsx"
 
-LOG_COLUMNS = [
-    "timestamp",
-    "symptom",
-    "root_cause",
-    "osi_layer",
-    "confidence",
-    "evidence",
-    "next_command",
-    "fix_steps",
-    "status",
-    "notes"
-]
+def get_db_connection():
+    """
+    Create a new MySQL connection.
+
+    A new connection is created for each request instead of
+    keeping one global connection alive. This is safer for
+    cloud deployments where connections can expire.
+    """
+
+    try:
+
+        connection = mysql.connector.connect(
+            host=MYSQL_HOST,
+            port=MYSQL_PORT,
+            database=MYSQL_DATABASE,
+            user=MYSQL_USER,
+            password=MYSQL_PASSWORD,
+            connection_timeout=10
+        )
+
+        return connection
+
+    except mysql.connector.Error as e:
+
+        print("MYSQL CONNECTION ERROR:")
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"MySQL connection failed: {str(e)}"
+        )
 
 
 # ============================================================
-# INITIALIZE EXCEL FILE
+# INITIALIZE DATABASE
 # ============================================================
 
-if not os.path.exists(EXCEL_FILE):
+def initialize_database():
 
-    df_init = pd.DataFrame(
-        columns=LOG_COLUMNS
-    )
+    connection = None
+    cursor = None
 
-    df_init.to_excel(
-        EXCEL_FILE,
-        index=False,
-        engine="openpyxl"
-    )
+    try:
+
+        connection = mysql.connector.connect(
+            host=MYSQL_HOST,
+            port=MYSQL_PORT,
+            database=MYSQL_DATABASE,
+            user=MYSQL_USER,
+            password=MYSQL_PASSWORD,
+            connection_timeout=10
+        )
+
+        cursor = connection.cursor()
+
+        create_table_query = """
+        CREATE TABLE IF NOT EXISTS ai_reviews (
+
+            id INT AUTO_INCREMENT PRIMARY KEY,
+
+            timestamp DATETIME NOT NULL,
+
+            symptom TEXT,
+
+            root_cause TEXT,
+
+            osi_layer VARCHAR(100),
+
+            confidence VARCHAR(100),
+
+            evidence TEXT,
+
+            next_command TEXT,
+
+            fix_steps TEXT,
+
+            status VARCHAR(50),
+
+            notes TEXT
+
+        )
+        """
+
+        cursor.execute(create_table_query)
+
+        connection.commit()
+
+        print("MySQL database initialized successfully.")
+
+    except Exception:
+
+        print("DATABASE INITIALIZATION ERROR:")
+        traceback.print_exc()
+
+    finally:
+
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
+
+
+# ============================================================
+# INITIALIZE DATABASE ON STARTUP
+# ============================================================
+
+initialize_database()
 
 
 # ============================================================
@@ -117,7 +199,7 @@ class FeedbackRequest(BaseModel):
 
 
 # ============================================================
-# MAIN FRONTEND
+# FRONTEND
 # ============================================================
 
 @app.get("/", response_class=HTMLResponse)
@@ -302,10 +384,6 @@ Return valid JSON only matching this schema:
         )
 
 
-    # --------------------------------------------------------
-    # RETURN DIAGNOSIS
-    # --------------------------------------------------------
-
     return {
 
         "rule_issues":
@@ -317,106 +395,89 @@ Return valid JSON only matching this schema:
 
 
 # ============================================================
-# LOG AI FEEDBACK INTO XLSX
+# LOG FEEDBACK INTO MYSQL
 # ============================================================
 
 @app.post("/api/log-feedback")
 def log_feedback(req: FeedbackRequest):
 
+    connection = None
+    cursor = None
+
     try:
 
-        # ----------------------------------------------------
-        # READ EXISTING EXCEL FILE
-        # ----------------------------------------------------
+        connection = get_db_connection()
 
-        if os.path.exists(EXCEL_FILE):
-
-            try:
-
-                df = pd.read_excel(
-                    EXCEL_FILE,
-                    engine="openpyxl"
-                )
-
-            except Exception:
-
-                traceback.print_exc()
-
-                df = pd.DataFrame(
-                    columns=LOG_COLUMNS
-                )
-
-        else:
-
-            df = pd.DataFrame(
-                columns=LOG_COLUMNS
-            )
+        cursor = connection.cursor()
 
 
-        # ----------------------------------------------------
-        # CREATE NEW ROW
-        # ----------------------------------------------------
+        insert_query = """
+        INSERT INTO ai_reviews (
 
-        new_row = {
+            timestamp,
+            symptom,
+            root_cause,
+            osi_layer,
+            confidence,
+            evidence,
+            next_command,
+            fix_steps,
+            status,
+            notes
 
-            "timestamp":
-                datetime.now().strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                ),
+        )
 
-            "symptom":
-                req.symptom,
+        VALUES (
 
-            "root_cause":
-                req.diagnosis.root_cause,
+            %s,
+            %s,
+            %s,
+            %s,
+            %s,
+            %s,
+            %s,
+            %s,
+            %s,
+            %s
 
-            "osi_layer":
-                req.diagnosis.osi_layer,
-
-            "confidence":
-                req.diagnosis.confidence,
-
-            "evidence":
-                req.diagnosis.evidence,
-
-            "next_command":
-                req.diagnosis.next_command,
-
-            "fix_steps":
-                " | ".join(
-                    req.diagnosis.fix_steps
-                ),
-
-            "status":
-                req.status,
-
-            "notes":
-                req.notes or ""
-        }
+        )
+        """
 
 
-        # ----------------------------------------------------
-        # APPEND NEW ROW
-        # ----------------------------------------------------
+        values = (
 
-        df = pd.concat(
-            [
-                df,
-                pd.DataFrame([new_row])
-            ],
-            ignore_index=True
+            datetime.now(),
+
+            req.symptom,
+
+            req.diagnosis.root_cause,
+
+            req.diagnosis.osi_layer,
+
+            req.diagnosis.confidence,
+
+            req.diagnosis.evidence,
+
+            req.diagnosis.next_command,
+
+            " | ".join(
+                req.diagnosis.fix_steps
+            ),
+
+            req.status,
+
+            req.notes or ""
+
         )
 
 
-        # ----------------------------------------------------
-        # SAVE BACK TO XLSX
-        # ----------------------------------------------------
-
-        df.to_excel(
-            EXCEL_FILE,
-            index=False,
-            engine="openpyxl"
+        cursor.execute(
+            insert_query,
+            values
         )
+
+
+        connection.commit()
 
 
         return {
@@ -425,11 +486,32 @@ def log_feedback(req: FeedbackRequest):
                 "success",
 
             "message":
-                "Feedback successfully logged."
+                "Feedback successfully logged to MySQL."
+
         }
 
 
+    except mysql.connector.Error as e:
+
+        if connection:
+            connection.rollback()
+
+        traceback.print_exc()
+
+        raise HTTPException(
+
+            status_code=500,
+
+            detail=
+                f"MySQL logging error: {str(e)}"
+
+        )
+
+
     except Exception as e:
+
+        if connection:
+            connection.rollback()
 
         traceback.print_exc()
 
@@ -439,7 +521,17 @@ def log_feedback(req: FeedbackRequest):
 
             detail=
                 f"Failed to log feedback: {str(e)}"
+
         )
+
+
+    finally:
+
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
 
 
 # ============================================================
@@ -468,37 +560,29 @@ def analytics_page():
 
 <title>NetSage AI - Analytics</title>
 
-
 <style>
 
 :root {
-
     --bg: #0f172a;
     --card: #1e293b;
     --accent: #38bdf8;
     --text: #f8fafc;
     --muted: #94a3b8;
     --border: #334155;
-
 }
-
 
 * {
     box-sizing: border-box;
 }
 
-
 body {
 
     margin: 0;
-
     padding: 30px;
 
-    background:
-        var(--bg);
+    background: var(--bg);
 
-    color:
-        var(--text);
+    color: var(--text);
 
     font-family:
         'Segoe UI',
@@ -506,216 +590,140 @@ body {
         Geneva,
         Verdana,
         sans-serif;
-
 }
-
 
 .container {
 
-    max-width:
-        1200px;
-
-    margin:
-        0 auto;
-
+    max-width: 1200px;
+    margin: 0 auto;
 }
-
 
 header {
 
-    text-align:
-        center;
-
-    margin-bottom:
-        35px;
-
+    text-align: center;
+    margin-bottom: 35px;
 }
-
 
 header h1 {
 
-    color:
-        var(--accent);
-
-    margin-bottom:
-        5px;
-
+    color: var(--accent);
+    margin-bottom: 5px;
 }
-
 
 .subtitle {
 
-    color:
-        var(--muted);
-
+    color: var(--muted);
 }
-
 
 .stats-grid {
 
-    display:
-        grid;
+    display: grid;
 
     grid-template-columns:
         repeat(4, 1fr);
 
-    gap:
-        20px;
+    gap: 20px;
 
-    margin-bottom:
-        30px;
-
+    margin-bottom: 30px;
 }
-
 
 .stat-card {
 
-    background:
-        var(--card);
+    background: var(--card);
 
     border:
         1px solid var(--border);
 
-    border-radius:
-        12px;
+    border-radius: 12px;
 
-    padding:
-        25px;
+    padding: 25px;
 
-    text-align:
-        center;
-
+    text-align: center;
 }
-
 
 .stat-card h3 {
 
-    color:
-        var(--muted);
+    color: var(--muted);
 
-    margin-bottom:
-        10px;
-
+    margin-bottom: 10px;
 }
-
 
 .stat-value {
 
-    font-size:
-        2rem;
+    font-size: 2rem;
 
-    font-weight:
-        bold;
+    font-weight: bold;
 
-    color:
-        var(--accent);
-
+    color: var(--accent);
 }
-
 
 .chart-card {
 
-    background:
-        var(--card);
+    background: var(--card);
 
     border:
         1px solid var(--border);
 
-    border-radius:
-        12px;
+    border-radius: 12px;
 
-    padding:
-        20px;
+    padding: 20px;
 
-    margin-bottom:
-        25px;
+    margin-bottom: 25px;
 
-    text-align:
-        center;
-
+    text-align: center;
 }
-
 
 .chart-card h2 {
 
-    margin-top:
-        0;
+    margin-top: 0;
 
-    color:
-        var(--accent);
-
+    color: var(--accent);
 }
-
 
 .chart-card img {
 
-    max-width:
-        100%;
+    max-width: 100%;
 
-    border-radius:
-        8px;
-
+    border-radius: 8px;
 }
-
 
 .actions {
 
-    display:
-        flex;
+    display: flex;
 
-    gap:
-        15px;
+    gap: 15px;
 
-    margin-top:
-        30px;
-
+    margin-top: 30px;
 }
-
 
 button {
 
-    flex:
-        1;
+    flex: 1;
 
-    padding:
-        14px;
+    padding: 14px;
 
-    border:
-        none;
+    border: none;
 
-    border-radius:
-        8px;
+    border-radius: 8px;
 
-    font-weight:
-        bold;
+    font-weight: bold;
 
-    cursor:
-        pointer;
-
+    cursor: pointer;
 }
-
 
 .back {
 
-    background:
-        #334155;
+    background: #334155;
 
-    color:
-        white;
-
+    color: white;
 }
-
 
 .download {
 
-    background:
-        var(--accent);
+    background: var(--accent);
 
-    color:
-        #0f172a;
-
+    color: #0f172a;
 }
-
 
 @media(max-width: 800px) {
 
@@ -723,41 +731,29 @@ button {
 
         grid-template-columns:
             repeat(2, 1fr);
-
     }
-
 }
-
 
 @media(max-width: 500px) {
 
     .stats-grid {
 
-        grid-template-columns:
-            1fr;
-
+        grid-template-columns: 1fr;
     }
-
 
     .actions {
 
-        flex-direction:
-            column;
-
+        flex-direction: column;
     }
-
 }
 
 </style>
 
 </head>
 
-
 <body>
 
-
 <div class="container">
-
 
 <header>
 
@@ -772,12 +768,7 @@ button {
 </header>
 
 
-<!-- ======================================================
-     STATISTICS
-======================================================= -->
-
 <div class="stats-grid">
-
 
 <div class="stat-card">
 
@@ -842,13 +833,8 @@ button {
 
 </div>
 
-
 </div>
 
-
-<!-- ======================================================
-     STATUS CHART
-======================================================= -->
 
 <div class="chart-card">
 
@@ -861,13 +847,8 @@ button {
     alt="Review Status Distribution"
 >
 
-
 </div>
 
-
-<!-- ======================================================
-     OSI CHART
-======================================================= -->
 
 <div class="chart-card">
 
@@ -880,16 +861,10 @@ button {
     alt="OSI Layer Distribution"
 >
 
-
 </div>
 
 
-<!-- ======================================================
-     ACTIONS
-======================================================= -->
-
 <div class="actions">
-
 
 <button
     class="back"
@@ -906,19 +881,12 @@ button {
     📥 Download Excel Report
 </button>
 
-
 </div>
-
 
 </div>
 
 
 <script>
-
-
-// ==========================================================
-// LOAD ANALYTICS
-// ==========================================================
 
 async function loadStats() {
 
@@ -929,10 +897,8 @@ async function loadStats() {
                 '/api/analytics/stats'
             );
 
-
         const data =
             await response.json();
-
 
         if (!response.ok) {
 
@@ -940,33 +906,27 @@ async function loadStats() {
                 data.detail ||
                 'Failed to load statistics'
             );
-
         }
-
 
         document.getElementById(
             'total'
         ).textContent =
             data.total_reviews;
 
-
         document.getElementById(
             'acceptance'
         ).textContent =
             data.acceptance_rate + '%';
-
 
         document.getElementById(
             'edit'
         ).textContent =
             data.edit_rate + '%';
 
-
         document.getElementById(
             'rejection'
         ).textContent =
             data.rejection_rate + '%';
-
 
     }
 
@@ -978,13 +938,8 @@ async function loadStats() {
         );
 
     }
-
 }
 
-
-// ==========================================================
-// DOWNLOAD EXCEL
-// ==========================================================
 
 function downloadExcel() {
 
@@ -994,14 +949,9 @@ function downloadExcel() {
 }
 
 
-// ==========================================================
-// INITIALIZE
-// ==========================================================
-
 loadStats();
 
 </script>
-
 
 </body>
 
@@ -1010,41 +960,93 @@ loadStats();
 
 
 # ============================================================
-# ANALYTICS STATISTICS API
+# READ ALL REVIEWS FROM MYSQL
 # ============================================================
 
-@app.get("/api/analytics/stats")
+def read_reviews_from_mysql():
+
+    connection = None
+    cursor = None
+
+    try:
+
+        connection = get_db_connection()
+
+        cursor = connection.cursor(
+            dictionary=True
+        )
+
+
+        query = """
+        SELECT
+            id,
+            timestamp,
+            symptom,
+            root_cause,
+            osi_layer,
+            confidence,
+            evidence,
+            next_command,
+            fix_steps,
+            status,
+            notes
+        FROM ai_reviews
+        ORDER BY timestamp ASC
+        """
+
+
+        cursor.execute(query)
+
+
+        rows = cursor.fetchall()
+
+
+        df = pd.DataFrame(rows)
+
+
+        if df.empty:
+
+            df = pd.DataFrame(
+                columns=[
+                    "id",
+                    "timestamp",
+                    "symptom",
+                    "root_cause",
+                    "osi_layer",
+                    "confidence",
+                    "evidence",
+                    "next_command",
+                    "fix_steps",
+                    "status",
+                    "notes"
+                ]
+            )
+
+
+        return df
+
+
+    finally:
+
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
+
+
+# ============================================================
+# ANALYTICS STATISTICS
+# ============================================================
+
+@app.get(
+    "/api/analytics/stats"
+)
 def analytics_stats():
 
     try:
 
-        if (
-            not os.path.exists(EXCEL_FILE)
-            or os.stat(EXCEL_FILE).st_size == 0
-        ):
-
-            return {
-
-                "total_reviews": 0,
-
-                "accepted": 0,
-
-                "edited": 0,
-
-                "rejected": 0,
-
-                "acceptance_rate": 0,
-
-                "edit_rate": 0,
-
-                "rejection_rate": 0
-            }
-
-
-        df = pd.read_excel(
-            EXCEL_FILE,
-            engine="openpyxl"
-        )
+        df = read_reviews_from_mysql()
 
 
         total = len(df)
@@ -1157,7 +1159,7 @@ def analytics_stats():
 
 
 # ============================================================
-# MATPLOTLIB - REVIEW STATUS CHART
+# MATPLOTLIB - STATUS CHART
 # ============================================================
 
 @app.get(
@@ -1167,21 +1169,7 @@ def status_chart():
 
     try:
 
-        if not os.path.exists(EXCEL_FILE):
-
-            raise HTTPException(
-
-                status_code=404,
-
-                detail=
-                    "Analytics file not found."
-            )
-
-
-        df = pd.read_excel(
-            EXCEL_FILE,
-            engine="openpyxl"
-        )
+        df = read_reviews_from_mysql()
 
 
         statuses = [
@@ -1230,10 +1218,6 @@ def status_chart():
             ]
 
 
-        # ----------------------------------------------------
-        # MATPLOTLIB FIGURE
-        # ----------------------------------------------------
-
         fig, ax = plt.subplots(
             figsize=(9, 5)
         )
@@ -1269,10 +1253,6 @@ def status_chart():
         plt.tight_layout()
 
 
-        # ----------------------------------------------------
-        # SAVE TO MEMORY
-        # ----------------------------------------------------
-
         buffer = io.BytesIO()
 
 
@@ -1296,11 +1276,6 @@ def status_chart():
 
             media_type="image/png"
         )
-
-
-    except HTTPException:
-
-        raise
 
 
     except Exception as e:
@@ -1327,21 +1302,7 @@ def osi_chart():
 
     try:
 
-        if not os.path.exists(EXCEL_FILE):
-
-            raise HTTPException(
-
-                status_code=404,
-
-                detail=
-                    "Analytics file not found."
-            )
-
-
-        df = pd.read_excel(
-            EXCEL_FILE,
-            engine="openpyxl"
-        )
+        df = read_reviews_from_mysql()
 
 
         if (
@@ -1372,15 +1333,19 @@ def osi_chart():
             )
 
 
-            layers =layer_counts.index.tolist()
+            layers = (
+                layer_counts
+                .index
+                .tolist()
+            )
 
 
-            counts =layer_counts.values.tolist()
+            counts = (
+                layer_counts
+                .values
+                .tolist()
+            )
 
-
-        # ----------------------------------------------------
-        # MATPLOTLIB FIGURE
-        # ----------------------------------------------------
 
         fig, ax = plt.subplots(
             figsize=(9, 5)
@@ -1422,10 +1387,6 @@ def osi_chart():
         plt.tight_layout()
 
 
-        # ----------------------------------------------------
-        # SAVE TO MEMORY
-        # ----------------------------------------------------
-
         buffer = io.BytesIO()
 
 
@@ -1451,11 +1412,6 @@ def osi_chart():
         )
 
 
-    except HTTPException:
-
-        raise
-
-
     except Exception as e:
 
         traceback.print_exc()
@@ -1470,7 +1426,7 @@ def osi_chart():
 
 
 # ============================================================
-# DOWNLOAD EXISTING EXCEL FILE
+# EXPORT MYSQL DATA TO EXCEL
 # ============================================================
 
 @app.get(
@@ -1480,34 +1436,253 @@ def export_analytics_report():
 
     try:
 
-        if not os.path.exists(EXCEL_FILE):
+        df = read_reviews_from_mysql()
 
-            raise HTTPException(
 
-                status_code=404,
+        # Remove internal database ID from exported report
 
-                detail=
-                    "Excel log file does not exist."
+        if "id" in df.columns:
+
+            df = df.drop(
+                columns=["id"]
             )
 
 
-        return FileResponse(
+        # ----------------------------------------------------
+        # CALCULATE SUMMARY
+        # ----------------------------------------------------
 
-            path=EXCEL_FILE,
+        total_reviews = len(df)
+
+
+        if total_reviews > 0:
+
+            status_counts = (
+
+                df["status"]
+
+                .astype(str)
+
+                .str.strip()
+
+                .str.lower()
+
+                .value_counts()
+
+            )
+
+
+            accepted = int(
+                status_counts.get(
+                    "accepted",
+                    0
+                )
+            )
+
+
+            edited = int(
+                status_counts.get(
+                    "edited",
+                    0
+                )
+            )
+
+
+            rejected = int(
+                status_counts.get(
+                    "rejected",
+                    0
+                )
+            )
+
+
+        else:
+
+            accepted = 0
+            edited = 0
+            rejected = 0
+
+
+        acceptance_rate = (
+
+            round(
+                accepted /
+                total_reviews *
+                100,
+                2
+            )
+
+            if total_reviews > 0
+            else 0
+        )
+
+
+        edit_rate = (
+
+            round(
+                edited /
+                total_reviews *
+                100,
+                2
+            )
+
+            if total_reviews > 0
+            else 0
+        )
+
+
+        rejection_rate = (
+
+            round(
+                rejected /
+                total_reviews *
+                100,
+                2
+            )
+
+            if total_reviews > 0
+            else 0
+        )
+
+
+        # ----------------------------------------------------
+        # PERFORMANCE SUMMARY
+        # ----------------------------------------------------
+
+        df_summary = pd.DataFrame({
+
+            "Metric": [
+
+                "Total AI Diagnoses Reviewed",
+
+                "Accepted Count",
+
+                "Edited Count",
+
+                "Rejected Count",
+
+                "Acceptance Rate (%)",
+
+                "Edit Rate (%)",
+
+                "Rejection Rate (%)"
+
+            ],
+
+            "Value": [
+
+                total_reviews,
+
+                accepted,
+
+                edited,
+
+                rejected,
+
+                acceptance_rate,
+
+                edit_rate,
+
+                rejection_rate
+
+            ]
+
+        })
+
+
+        # ----------------------------------------------------
+        # OSI BREAKDOWN
+        # ----------------------------------------------------
+
+        if (
+            total_reviews > 0
+            and "osi_layer" in df.columns
+        ):
+
+            df_osi = (
+
+                df["osi_layer"]
+
+                .astype(str)
+
+                .str.strip()
+
+                .value_counts()
+
+                .reset_index()
+
+            )
+
+
+            df_osi.columns = [
+                "OSI Layer",
+                "Count"
+            ]
+
+        else:
+
+            df_osi = pd.DataFrame(
+                columns=[
+                    "OSI Layer",
+                    "Count"
+                ]
+            )
+
+
+        # ----------------------------------------------------
+        # CREATE EXCEL IN MEMORY
+        # ----------------------------------------------------
+
+        output = io.BytesIO()
+
+
+        with pd.ExcelWriter(
+            output,
+            engine="openpyxl"
+        ) as writer:
+
+            df_summary.to_excel(
+                writer,
+                sheet_name="Performance Summary",
+                index=False
+            )
+
+
+            df_osi.to_excel(
+                writer,
+                sheet_name="OSI Layer Breakdown",
+                index=False
+            )
+
+
+            df.to_excel(
+                writer,
+                sheet_name="Audit Log Data",
+                index=False
+            )
+
+
+        output.seek(0)
+
+
+        return StreamingResponse(
+
+            output,
 
             media_type=(
                 "application/vnd.openxmlformats-officedocument."
                 "spreadsheetml.sheet"
             ),
 
-            filename=
-                "NetSage_Model_Performance_Report.xlsx"
+            headers={
+
+                "Content-Disposition":
+                    "attachment; "
+                    "filename=NetSage_Model_Performance_Report.xlsx"
+
+            }
+
         )
-
-
-    except HTTPException:
-
-        raise
 
 
     except Exception as e:

@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>NetSage AI - Network Troubleshooting Assistant</title>
 
     <style>
+
         :root {
             --bg-color: #0f172a;
             --card-bg: #1e293b;
@@ -19,11 +22,26 @@
             --danger: #ef4444;
         }
 
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text);
+            font-family:
+                'Segoe UI',
+                Tahoma,
+                Geneva,
+                Verdana,
+                sans-serif;
+
+            background-color:
+                var(--bg-color);
+
+            color:
+                var(--text);
+
             margin: 0;
+
             padding: 20px;
         }
 
@@ -42,6 +60,10 @@
             margin-bottom: 5px;
         }
 
+        header p {
+            color: var(--text-muted);
+        }
+
         .grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -49,56 +71,99 @@
         }
 
         @media (max-width: 768px) {
+
             .grid {
                 grid-template-columns: 1fr;
             }
+
         }
 
         .card {
-            background-color: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+
+            background-color:
+                var(--card-bg);
+
+            border:
+                1px solid var(--border);
+
+            border-radius:
+                10px;
+
+            padding:
+                20px;
+
+            box-shadow:
+                0 4px 6px rgba(0,0,0,0.3);
         }
 
         label {
+
             display: block;
+
             margin-bottom: 5px;
+
             font-weight: 600;
+
             color: var(--accent);
+
             font-size: 0.9rem;
         }
 
         textarea,
         input[type="text"] {
+
             width: 100%;
+
             background: #0b0f19;
+
             color: var(--text);
-            border: 1px solid var(--border);
+
+            border:
+                1px solid var(--border);
+
             border-radius: 6px;
+
             padding: 8px 10px;
+
             font-family: monospace;
+
             box-sizing: border-box;
+
             margin-bottom: 12px;
         }
 
         textarea {
+
             height: 90px;
+
             resize: vertical;
         }
 
         button {
-            background-color: var(--accent);
-            color: #0f172a;
+
+            background-color:
+                var(--accent);
+
+            color:
+                #0f172a;
+
             border: none;
-            padding: 12px 20px;
+
+            padding:
+                12px 20px;
+
             font-weight: bold;
+
             border-radius: 6px;
+
             cursor: pointer;
+
             width: 100%;
+
             margin-top: 10px;
-            transition: opacity 0.2s;
+
+            transition:
+                opacity 0.2s;
         }
 
         button:hover {
@@ -106,107 +171,231 @@
         }
 
         .analytics-button {
-            background-color: #0284c7;
+
+            background-color:
+                #0284c7;
+
             color: white;
         }
 
         .output-box {
-            background: #0b0f19;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 15px;
-            margin-top: 15px;
-            font-family: monospace;
-            white-space: pre-wrap;
-            min-height: 150px;
-            max-height: 320px;
-            overflow-y: auto;
+
+            background:
+                #0b0f19;
+
+            border:
+                1px solid var(--border);
+
+            border-radius:
+                6px;
+
+            padding:
+                15px;
+
+            margin-top:
+                15px;
+
+            font-family:
+                monospace;
+
+            white-space:
+                pre-wrap;
+
+            min-height:
+                150px;
+
+            max-height:
+                320px;
+
+            overflow-y:
+                auto;
         }
 
         .badge {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.85rem;
-            font-weight: bold;
-            background: #0284c7;
-            color: white;
-            margin-bottom: 10px;
+
+            display:
+                inline-block;
+
+            padding:
+                4px 8px;
+
+            border-radius:
+                4px;
+
+            font-size:
+                0.85rem;
+
+            font-weight:
+                bold;
+
+            background:
+                #0284c7;
+
+            color:
+                white;
+
+            margin-bottom:
+                10px;
         }
 
         .loader {
-            display: none;
-            text-align: center;
-            color: var(--accent);
-            margin-top: 10px;
+
+            display:
+                none;
+
+            text-align:
+                center;
+
+            color:
+                var(--accent);
+
+            margin-top:
+                10px;
         }
 
         .review-panel {
-            display: none;
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 1px dashed var(--border);
+
+            display:
+                none;
+
+            margin-top:
+                15px;
+
+            padding-top:
+                15px;
+
+            border-top:
+                1px dashed var(--border);
         }
 
         .edit-form-container {
-            display: none;
-            margin-top: 15px;
-            background: #0b0f19;
-            border: 1px solid var(--warning);
-            border-radius: 8px;
-            padding: 15px;
+
+            display:
+                none;
+
+            margin-top:
+                15px;
+
+            background:
+                #0b0f19;
+
+            border:
+                1px solid var(--warning);
+
+            border-radius:
+                8px;
+
+            padding:
+                15px;
         }
 
         .btn-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 5px;
+
+            display:
+                flex;
+
+            gap:
+                10px;
+
+            margin-top:
+                5px;
         }
 
         .btn-accept {
-            background-color: var(--success);
-            color: white;
-            width: 100%;
-            margin-top: 0;
+
+            background-color:
+                var(--success);
+
+            color:
+                white;
+
+            width:
+                100%;
+
+            margin-top:
+                0;
         }
 
         .btn-edit {
-            background-color: var(--warning);
-            color: #0f172a;
-            width: 100%;
-            margin-top: 0;
+
+            background-color:
+                var(--warning);
+
+            color:
+                #0f172a;
+
+            width:
+                100%;
+
+            margin-top:
+                0;
         }
 
         .btn-reject {
-            background-color: var(--danger);
-            color: white;
-            width: 100%;
-            margin-top: 0;
+
+            background-color:
+                var(--danger);
+
+            color:
+                white;
+
+            width:
+                100%;
+
+            margin-top:
+                0;
         }
 
         .status-msg {
-            margin-top: 10px;
-            font-weight: bold;
-            text-align: center;
+
+            margin-top:
+                10px;
+
+            font-weight:
+                bold;
+
+            text-align:
+                center;
         }
+
+        @media (max-width: 600px) {
+
+            .btn-group {
+                flex-direction: column;
+            }
+
+        }
+
     </style>
+
 </head>
+
 
 <body>
 
 <div class="container">
 
+
+    <!-- ==================================================
+         HEADER
+    =================================================== -->
+
     <header>
-        <h1>NetSage AI Dashboard</h1>
+
+        <h1>
+            NetSage AI Dashboard
+        </h1>
 
         <p>
             Hybrid Deterministic & AI-Powered
             Packet Tracer Troubleshooting
         </p>
+
     </header>
 
 
     <div class="grid">
+
 
         <!-- ==================================================
              INPUT CARD
@@ -214,7 +403,10 @@
 
         <div class="card">
 
-            <h2>Lab Inputs</h2>
+            <h2>
+                Lab Inputs
+            </h2>
+
 
             <label for="symptom">
                 User Symptom
@@ -239,7 +431,9 @@
             ></textarea>
 
 
-            <button onclick="runDiagnosis()">
+            <button
+                onclick="runDiagnosis()"
+            >
                 Run NetSage Diagnostics
             </button>
 
@@ -248,8 +442,13 @@
                 id="loader"
                 class="loader"
             >
+
                 Analyzing Layer 1 & Layer 2 RAG...
+
+                <br>
+
                 Please wait...
+
             </div>
 
 
@@ -257,13 +456,17 @@
                  ANALYTICS BUTTON
             =================================================== -->
 
-            <div style="margin-top: 25px;">
+            <div
+                style="margin-top: 25px;"
+            >
 
                 <button
                     onclick="viewAnalytics()"
                     class="analytics-button"
                 >
+
                     📊 View Model Performance
+
                 </button>
 
             </div>
@@ -286,8 +489,10 @@
                 id="resultsContent"
                 class="output-box"
             >
+
                 Click "Run NetSage Diagnostics"
                 to analyze configuration logs.
+
             </div>
 
 
@@ -306,7 +511,9 @@
                         margin-top: 0;
                     "
                 >
+
                     ✏️ Edit AI Diagnosis Before Logging
+
                 </h3>
 
 
@@ -372,7 +579,9 @@
                     class="btn-edit"
                     onclick="submitEditedReview()"
                 >
+
                     Confirm & Log Edited Diagnosis
+
                 </button>
 
 
@@ -385,7 +594,9 @@
                     "
                     onclick="cancelEdit()"
                 >
+
                     Cancel
+
                 </button>
 
             </div>
@@ -415,11 +626,14 @@
 
                 <div class="btn-group">
 
+
                     <button
                         class="btn-accept"
                         onclick="submitReview('Accepted')"
                     >
+
                         ✅ Accept
+
                     </button>
 
 
@@ -427,7 +641,9 @@
                         class="btn-edit"
                         onclick="showEditForm()"
                     >
+
                         ✏️ Edit
+
                     </button>
 
 
@@ -435,18 +651,26 @@
                         class="btn-reject"
                         onclick="submitReview('Rejected')"
                     >
+
                         ❌ Reject
+
                     </button>
+
 
                 </div>
 
             </div>
 
 
+            <!-- ==================================================
+                 STATUS MESSAGE
+            =================================================== -->
+
             <div
                 id="statusMsg"
                 class="status-msg"
             ></div>
+
 
         </div>
 
@@ -467,26 +691,44 @@ let currentDiagnosisData = null;
 async function runDiagnosis() {
 
     const symptom =
-        document.getElementById('symptom').value;
+        document.getElementById(
+            'symptom'
+        ).value;
 
     const show_outputs =
-        document.getElementById('cli').value;
+        document.getElementById(
+            'cli'
+        ).value;
 
     const loader =
-        document.getElementById('loader');
+        document.getElementById(
+            'loader'
+        );
 
     const resultsBox =
-        document.getElementById('resultsContent');
+        document.getElementById(
+            'resultsContent'
+        );
 
     const reviewPanel =
-        document.getElementById('reviewPanel');
+        document.getElementById(
+            'reviewPanel'
+        );
 
     const editFormContainer =
-        document.getElementById('editFormContainer');
+        document.getElementById(
+            'editFormContainer'
+        );
 
     const statusMsg =
-        document.getElementById('statusMsg');
+        document.getElementById(
+            'statusMsg'
+        );
 
+
+    // --------------------------------------------------------
+    // VALIDATION
+    // --------------------------------------------------------
 
     if (
         !symptom.trim()
@@ -502,35 +744,56 @@ async function runDiagnosis() {
     }
 
 
-    loader.style.display = 'block';
+    // --------------------------------------------------------
+    // RESET UI
+    // --------------------------------------------------------
+
+    loader.style.display =
+        'block';
 
     resultsBox.innerHTML =
         'Running checks...';
 
-    reviewPanel.style.display = 'none';
+    reviewPanel.style.display =
+        'none';
 
-    editFormContainer.style.display = 'none';
+    editFormContainer.style.display =
+        'none';
 
-    statusMsg.innerHTML = '';
+    statusMsg.innerHTML =
+        '';
 
+
+    // --------------------------------------------------------
+    // CALL BACKEND
+    // --------------------------------------------------------
 
     try {
 
         const response =
-            await fetch('/api/diagnose', {
+            await fetch(
+                '/api/diagnose',
+                {
 
-                method: 'POST',
+                    method: 'POST',
 
-                headers: {
-                    'Content-Type':
-                        'application/json'
-                },
+                    headers: {
+                        'Content-Type':
+                            'application/json'
+                    },
 
-                body: JSON.stringify({
-                    symptom,
-                    show_outputs
-                })
-            });
+                    body: JSON.stringify({
+
+                        symptom:
+                            symptom,
+
+                        show_outputs:
+                            show_outputs
+
+                    })
+
+                }
+            );
 
 
         const data =
@@ -546,9 +809,17 @@ async function runDiagnosis() {
         }
 
 
+        // ----------------------------------------------------
+        // SAVE CURRENT DIAGNOSIS
+        // ----------------------------------------------------
+
         currentDiagnosisData =
             data.diagnosis;
 
+
+        // ----------------------------------------------------
+        // DISPLAY RESULTS
+        // ----------------------------------------------------
 
         let html =
             `<span class="badge">
@@ -562,18 +833,24 @@ async function runDiagnosis() {
             data.rule_issues.length > 0
         ) {
 
-            data.rule_issues.forEach(i => {
+            data.rule_issues.forEach(
+                issue => {
 
-                html +=
-                    `❌ [${i.error_type}] ` +
-                    `${i.target}: ${i.detail}\n`;
+                    html +=
+                        `❌ [${issue.error_type}] ` +
+                        `${issue.target}: ` +
+                        `${issue.detail}\n`;
 
-            });
+                }
+            );
 
-        } else {
+        }
+
+        else {
 
             html +=
                 `✅ No hard rule violations found.\n`;
+
         }
 
 
@@ -618,30 +895,43 @@ async function runDiagnosis() {
 
 
         data.diagnosis.fix_steps
-            .forEach((step, idx) => {
+            .forEach(
+                (step, index) => {
 
-                html +=
-                    `  ${idx + 1}. ${step}\n`;
+                    html +=
+                        `  ${index + 1}. ${step}\n`;
 
-            });
-
-
-        resultsBox.innerHTML = html;
-
-        reviewPanel.style.display = 'block';
+                }
+            );
 
 
-    } catch (err) {
+        resultsBox.innerHTML =
+            html;
+
+
+        reviewPanel.style.display =
+            'block';
+
+    }
+
+
+    catch (error) {
 
         resultsBox.innerHTML =
             `[!] Error communicating with server: ${
-                err.message
+                error.message
             }`;
 
-    } finally {
-
-        loader.style.display = 'none';
     }
+
+
+    finally {
+
+        loader.style.display =
+            'none';
+
+    }
+
 }
 
 
@@ -653,6 +943,7 @@ function viewAnalytics() {
 
     window.location.href =
         '/analytics';
+
 }
 
 
@@ -663,7 +954,9 @@ function viewAnalytics() {
 function showEditForm() {
 
     if (!currentDiagnosisData) {
+
         return;
+
     }
 
 
@@ -700,22 +993,28 @@ function showEditForm() {
     document.getElementById(
         'editFixSteps'
     ).value =
-        currentDiagnosisData.fix_steps.join('\n');
+        currentDiagnosisData.fix_steps.join(
+            '\n'
+        );
 
 
     document.getElementById(
         'resultsContent'
-    ).style.display = 'none';
+    ).style.display =
+        'none';
 
 
     document.getElementById(
         'reviewPanel'
-    ).style.display = 'none';
+    ).style.display =
+        'none';
 
 
     document.getElementById(
         'editFormContainer'
-    ).style.display = 'block';
+    ).style.display =
+        'block';
+
 }
 
 
@@ -727,17 +1026,21 @@ function cancelEdit() {
 
     document.getElementById(
         'editFormContainer'
-    ).style.display = 'none';
+    ).style.display =
+        'none';
 
 
     document.getElementById(
         'resultsContent'
-    ).style.display = 'block';
+    ).style.display =
+        'block';
 
 
     document.getElementById(
         'reviewPanel'
-    ).style.display = 'block';
+    ).style.display =
+        'block';
+
 }
 
 
@@ -780,8 +1083,10 @@ async function submitEditedReview() {
             ).value
             .split('\n')
             .filter(
-                s => s.trim() !== ''
+                step =>
+                    step.trim() !== ''
             )
+
     };
 
 
@@ -790,7 +1095,7 @@ async function submitEditedReview() {
             'reviewNotes'
         ).value
         ||
-        "Human edited diagnosis values";
+        'Human edited diagnosis values';
 
 
     await sendReviewToServer(
@@ -798,17 +1103,20 @@ async function submitEditedReview() {
         'Edited',
         notes
     );
+
 }
 
 
 // ============================================================
-// SUBMIT REVIEW
+// SUBMIT ACCEPT / REJECT
 // ============================================================
 
 async function submitReview(status) {
 
     if (!currentDiagnosisData) {
+
         return;
+
     }
 
 
@@ -823,11 +1131,12 @@ async function submitReview(status) {
         status,
         notes
     );
+
 }
 
 
 // ============================================================
-// SEND REVIEW TO SERVER
+// SEND REVIEW TO MYSQL BACKEND
 // ============================================================
 
 async function sendReviewToServer(
@@ -875,7 +1184,9 @@ async function sendReviewToServer(
 
                         notes:
                             notes
+
                     })
+
                 }
             );
 
@@ -884,54 +1195,66 @@ async function sendReviewToServer(
             await response.json();
 
 
-        if (response.ok) {
-
-            statusMsg.style.color =
-                'var(--success)';
-
-
-            statusMsg.innerHTML =
-                `Successfully logged as <strong>${
-                    status
-                }</strong> with your updates!`;
-
-
-            document.getElementById(
-                'editFormContainer'
-            ).style.display = 'none';
-
-
-            document.getElementById(
-                'reviewPanel'
-            ).style.display = 'none';
-
-
-            document.getElementById(
-                'resultsContent'
-            ).style.display = 'block';
-
-
-        } else {
+        if (!response.ok) {
 
             throw new Error(
                 result.detail ||
                 'Failed to log feedback'
             );
+
         }
 
 
-    } catch (err) {
+        // ----------------------------------------------------
+        // SUCCESS
+        // ----------------------------------------------------
+
+        statusMsg.style.color =
+            'var(--success)';
+
+
+        statusMsg.innerHTML =
+            `Successfully logged as <strong>${
+                status
+            }</strong>!`;
+
+
+        document.getElementById(
+            'editFormContainer'
+        ).style.display =
+            'none';
+
+
+        document.getElementById(
+            'reviewPanel'
+        ).style.display =
+            'none';
+
+
+        document.getElementById(
+            'resultsContent'
+        ).style.display =
+            'block';
+
+
+    }
+
+
+    catch (error) {
 
         statusMsg.style.color =
             'var(--danger)';
 
 
         statusMsg.innerHTML =
-            `Error: ${err.message}`;
+            `Error: ${error.message}`;
+
     }
+
 }
 
 </script>
 
 </body>
+
 </html>
