@@ -1,11 +1,17 @@
 import os
+import io
 import json
 import traceback
 from datetime import datetime
 from typing import List, Optional
 
+import matplotlib
+matplotlib.use("Agg")
+
+import matplotlib.pyplot as plt
+
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 import pandas as pd
@@ -49,10 +55,8 @@ client = Groq(
 
 os.makedirs("logs", exist_ok=True)
 
-# Your main Excel log file
 EXCEL_FILE = "logs/ai_review_log.xlsx"
 
-# Columns stored in the Excel file
 LOG_COLUMNS = [
     "timestamp",
     "symptom",
@@ -89,11 +93,13 @@ if not os.path.exists(EXCEL_FILE):
 # ============================================================
 
 class DiagnosisRequest(BaseModel):
+
     symptom: str
     show_outputs: str
 
 
 class DiagnosisData(BaseModel):
+
     root_cause: str
     osi_layer: str
     confidence: str
@@ -103,6 +109,7 @@ class DiagnosisData(BaseModel):
 
 
 class FeedbackRequest(BaseModel):
+
     symptom: str
     diagnosis: DiagnosisData
     status: str
@@ -110,7 +117,7 @@ class FeedbackRequest(BaseModel):
 
 
 # ============================================================
-# FRONTEND
+# MAIN FRONTEND
 # ============================================================
 
 @app.get("/", response_class=HTMLResponse)
@@ -436,17 +443,1042 @@ def log_feedback(req: FeedbackRequest):
 
 
 # ============================================================
-# DOWNLOAD EXISTING EXCEL FILE
+# ANALYTICS PAGE
 # ============================================================
 
-@app.get("/api/analytics/export")
-def export_analytics_report():
+@app.get(
+    "/analytics",
+    response_class=HTMLResponse
+)
+def analytics_page():
+
+    return """
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+>
+
+<title>NetSage AI - Analytics</title>
+
+
+<style>
+
+:root {
+
+    --bg: #0f172a;
+    --card: #1e293b;
+    --accent: #38bdf8;
+    --text: #f8fafc;
+    --muted: #94a3b8;
+    --border: #334155;
+
+}
+
+
+* {
+    box-sizing: border-box;
+}
+
+
+body {
+
+    margin: 0;
+
+    padding: 30px;
+
+    background:
+        var(--bg);
+
+    color:
+        var(--text);
+
+    font-family:
+        'Segoe UI',
+        Tahoma,
+        Geneva,
+        Verdana,
+        sans-serif;
+
+}
+
+
+.container {
+
+    max-width:
+        1200px;
+
+    margin:
+        0 auto;
+
+}
+
+
+header {
+
+    text-align:
+        center;
+
+    margin-bottom:
+        35px;
+
+}
+
+
+header h1 {
+
+    color:
+        var(--accent);
+
+    margin-bottom:
+        5px;
+
+}
+
+
+.subtitle {
+
+    color:
+        var(--muted);
+
+}
+
+
+.stats-grid {
+
+    display:
+        grid;
+
+    grid-template-columns:
+        repeat(4, 1fr);
+
+    gap:
+        20px;
+
+    margin-bottom:
+        30px;
+
+}
+
+
+.stat-card {
+
+    background:
+        var(--card);
+
+    border:
+        1px solid var(--border);
+
+    border-radius:
+        12px;
+
+    padding:
+        25px;
+
+    text-align:
+        center;
+
+}
+
+
+.stat-card h3 {
+
+    color:
+        var(--muted);
+
+    margin-bottom:
+        10px;
+
+}
+
+
+.stat-value {
+
+    font-size:
+        2rem;
+
+    font-weight:
+        bold;
+
+    color:
+        var(--accent);
+
+}
+
+
+.chart-card {
+
+    background:
+        var(--card);
+
+    border:
+        1px solid var(--border);
+
+    border-radius:
+        12px;
+
+    padding:
+        20px;
+
+    margin-bottom:
+        25px;
+
+    text-align:
+        center;
+
+}
+
+
+.chart-card h2 {
+
+    margin-top:
+        0;
+
+    color:
+        var(--accent);
+
+}
+
+
+.chart-card img {
+
+    max-width:
+        100%;
+
+    border-radius:
+        8px;
+
+}
+
+
+.actions {
+
+    display:
+        flex;
+
+    gap:
+        15px;
+
+    margin-top:
+        30px;
+
+}
+
+
+button {
+
+    flex:
+        1;
+
+    padding:
+        14px;
+
+    border:
+        none;
+
+    border-radius:
+        8px;
+
+    font-weight:
+        bold;
+
+    cursor:
+        pointer;
+
+}
+
+
+.back {
+
+    background:
+        #334155;
+
+    color:
+        white;
+
+}
+
+
+.download {
+
+    background:
+        var(--accent);
+
+    color:
+        #0f172a;
+
+}
+
+
+@media(max-width: 800px) {
+
+    .stats-grid {
+
+        grid-template-columns:
+            repeat(2, 1fr);
+
+    }
+
+}
+
+
+@media(max-width: 500px) {
+
+    .stats-grid {
+
+        grid-template-columns:
+            1fr;
+
+    }
+
+
+    .actions {
+
+        flex-direction:
+            column;
+
+    }
+
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+
+<div class="container">
+
+
+<header>
+
+<h1>
+    NetSage AI Analytics
+</h1>
+
+<p class="subtitle">
+    AI Diagnosis Performance & Human Oversight
+</p>
+
+</header>
+
+
+<!-- ======================================================
+     STATISTICS
+======================================================= -->
+
+<div class="stats-grid">
+
+
+<div class="stat-card">
+
+<h3>
+    Total Diagnoses
+</h3>
+
+<div
+    id="total"
+    class="stat-value"
+>
+    ...
+</div>
+
+</div>
+
+
+<div class="stat-card">
+
+<h3>
+    Acceptance Rate
+</h3>
+
+<div
+    id="acceptance"
+    class="stat-value"
+>
+    ...
+</div>
+
+</div>
+
+
+<div class="stat-card">
+
+<h3>
+    Edit Rate
+</h3>
+
+<div
+    id="edit"
+    class="stat-value"
+>
+    ...
+</div>
+
+</div>
+
+
+<div class="stat-card">
+
+<h3>
+    Rejection Rate
+</h3>
+
+<div
+    id="rejection"
+    class="stat-value"
+>
+    ...
+</div>
+
+</div>
+
+
+</div>
+
+
+<!-- ======================================================
+     STATUS CHART
+======================================================= -->
+
+<div class="chart-card">
+
+<h2>
+    Review Status Distribution
+</h2>
+
+<img
+    src="/api/analytics/chart/status"
+    alt="Review Status Distribution"
+>
+
+
+</div>
+
+
+<!-- ======================================================
+     OSI CHART
+======================================================= -->
+
+<div class="chart-card">
+
+<h2>
+    OSI Layer Distribution
+</h2>
+
+<img
+    src="/api/analytics/chart/osi"
+    alt="OSI Layer Distribution"
+>
+
+
+</div>
+
+
+<!-- ======================================================
+     ACTIONS
+======================================================= -->
+
+<div class="actions">
+
+
+<button
+    class="back"
+    onclick="window.location.href='/'"
+>
+    ← Back to Dashboard
+</button>
+
+
+<button
+    class="download"
+    onclick="downloadExcel()"
+>
+    📥 Download Excel Report
+</button>
+
+
+</div>
+
+
+</div>
+
+
+<script>
+
+
+// ==========================================================
+// LOAD ANALYTICS
+// ==========================================================
+
+async function loadStats() {
+
+    try {
+
+        const response =
+            await fetch(
+                '/api/analytics/stats'
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.detail ||
+                'Failed to load statistics'
+            );
+
+        }
+
+
+        document.getElementById(
+            'total'
+        ).textContent =
+            data.total_reviews;
+
+
+        document.getElementById(
+            'acceptance'
+        ).textContent =
+            data.acceptance_rate + '%';
+
+
+        document.getElementById(
+            'edit'
+        ).textContent =
+            data.edit_rate + '%';
+
+
+        document.getElementById(
+            'rejection'
+        ).textContent =
+            data.rejection_rate + '%';
+
+
+    }
+
+    catch (error) {
+
+        console.error(
+            'Analytics error:',
+            error
+        );
+
+    }
+
+}
+
+
+// ==========================================================
+// DOWNLOAD EXCEL
+// ==========================================================
+
+function downloadExcel() {
+
+    window.location.href =
+        '/api/analytics/export';
+
+}
+
+
+// ==========================================================
+// INITIALIZE
+// ==========================================================
+
+loadStats();
+
+</script>
+
+
+</body>
+
+</html>
+"""
+
+
+# ============================================================
+# ANALYTICS STATISTICS API
+# ============================================================
+
+@app.get("/api/analytics/stats")
+def analytics_stats():
 
     try:
 
+        if (
+            not os.path.exists(EXCEL_FILE)
+            or os.stat(EXCEL_FILE).st_size == 0
+        ):
+
+            return {
+
+                "total_reviews": 0,
+
+                "accepted": 0,
+
+                "edited": 0,
+
+                "rejected": 0,
+
+                "acceptance_rate": 0,
+
+                "edit_rate": 0,
+
+                "rejection_rate": 0
+            }
+
+
+        df = pd.read_excel(
+            EXCEL_FILE,
+            engine="openpyxl"
+        )
+
+
+        total = len(df)
+
+
+        if total == 0:
+
+            return {
+
+                "total_reviews": 0,
+
+                "accepted": 0,
+
+                "edited": 0,
+
+                "rejected": 0,
+
+                "acceptance_rate": 0,
+
+                "edit_rate": 0,
+
+                "rejection_rate": 0
+            }
+
+
+        status_counts = (
+
+            df["status"]
+
+            .astype(str)
+
+            .str.strip()
+
+            .str.lower()
+
+            .value_counts()
+
+        )
+
+
+        accepted = int(
+            status_counts.get(
+                "accepted",
+                0
+            )
+        )
+
+
+        edited = int(
+            status_counts.get(
+                "edited",
+                0
+            )
+        )
+
+
+        rejected = int(
+            status_counts.get(
+                "rejected",
+                0
+            )
+        )
+
+
+        return {
+
+            "total_reviews":
+                total,
+
+            "accepted":
+                accepted,
+
+            "edited":
+                edited,
+
+            "rejected":
+                rejected,
+
+            "acceptance_rate":
+                round(
+                    accepted / total * 100,
+                    2
+                ),
+
+            "edit_rate":
+                round(
+                    edited / total * 100,
+                    2
+                ),
+
+            "rejection_rate":
+                round(
+                    rejected / total * 100,
+                    2
+                )
+        }
+
+
+    except Exception as e:
+
+        traceback.print_exc()
+
+        raise HTTPException(
+
+            status_code=500,
+
+            detail=
+                f"Analytics Error: {str(e)}"
+        )
+
+
+# ============================================================
+# MATPLOTLIB - REVIEW STATUS CHART
+# ============================================================
+
+@app.get(
+    "/api/analytics/chart/status"
+)
+def status_chart():
+
+    try:
+
+        if not os.path.exists(EXCEL_FILE):
+
+            raise HTTPException(
+
+                status_code=404,
+
+                detail=
+                    "Analytics file not found."
+            )
+
+
+        df = pd.read_excel(
+            EXCEL_FILE,
+            engine="openpyxl"
+        )
+
+
+        statuses = [
+            "Accepted",
+            "Edited",
+            "Rejected"
+        ]
+
+
+        if df.empty:
+
+            counts = [
+                0,
+                0,
+                0
+            ]
+
+        else:
+
+            status_counts = (
+
+                df["status"]
+
+                .astype(str)
+
+                .str.strip()
+
+                .str.title()
+
+                .value_counts()
+
+            )
+
+
+            counts = [
+
+                int(
+                    status_counts.get(
+                        status,
+                        0
+                    )
+                )
+
+                for status in statuses
+
+            ]
+
+
         # ----------------------------------------------------
-        # CHECK FILE EXISTS
+        # MATPLOTLIB FIGURE
         # ----------------------------------------------------
+
+        fig, ax = plt.subplots(
+            figsize=(9, 5)
+        )
+
+
+        ax.bar(
+            statuses,
+            counts
+        )
+
+
+        ax.set_title(
+            "AI Diagnosis Review Status"
+        )
+
+
+        ax.set_xlabel(
+            "Review Status"
+        )
+
+
+        ax.set_ylabel(
+            "Number of Reviews"
+        )
+
+
+        ax.grid(
+            axis="y",
+            alpha=0.25
+        )
+
+
+        plt.tight_layout()
+
+
+        # ----------------------------------------------------
+        # SAVE TO MEMORY
+        # ----------------------------------------------------
+
+        buffer = io.BytesIO()
+
+
+        fig.savefig(
+            buffer,
+            format="png",
+            dpi=150,
+            bbox_inches="tight"
+        )
+
+
+        plt.close(fig)
+
+
+        buffer.seek(0)
+
+
+        return StreamingResponse(
+
+            buffer,
+
+            media_type="image/png"
+        )
+
+
+    except HTTPException:
+
+        raise
+
+
+    except Exception as e:
+
+        traceback.print_exc()
+
+        raise HTTPException(
+
+            status_code=500,
+
+            detail=
+                f"Chart Error: {str(e)}"
+        )
+
+
+# ============================================================
+# MATPLOTLIB - OSI LAYER CHART
+# ============================================================
+
+@app.get(
+    "/api/analytics/chart/osi"
+)
+def osi_chart():
+
+    try:
+
+        if not os.path.exists(EXCEL_FILE):
+
+            raise HTTPException(
+
+                status_code=404,
+
+                detail=
+                    "Analytics file not found."
+            )
+
+
+        df = pd.read_excel(
+            EXCEL_FILE,
+            engine="openpyxl"
+        )
+
+
+        if (
+            df.empty
+            or "osi_layer" not in df.columns
+        ):
+
+            layers = [
+                "No Data"
+            ]
+
+            counts = [
+                0
+            ]
+
+        else:
+
+            layer_counts = (
+
+                df["osi_layer"]
+
+                .astype(str)
+
+                .str.strip()
+
+                .value_counts()
+
+            )
+
+
+            layers =layer_counts.index.tolist()
+
+
+            counts =layer_counts.values.tolist()
+
+
+        # ----------------------------------------------------
+        # MATPLOTLIB FIGURE
+        # ----------------------------------------------------
+
+        fig, ax = plt.subplots(
+            figsize=(9, 5)
+        )
+
+
+        ax.bar(
+            layers,
+            counts
+        )
+
+
+        ax.set_title(
+            "Diagnoses by OSI Layer"
+        )
+
+
+        ax.set_xlabel(
+            "OSI Layer"
+        )
+
+
+        ax.set_ylabel(
+            "Number of Diagnoses"
+        )
+
+
+        ax.grid(
+            axis="y",
+            alpha=0.25
+        )
+
+
+        plt.xticks(
+            rotation=20
+        )
+
+
+        plt.tight_layout()
+
+
+        # ----------------------------------------------------
+        # SAVE TO MEMORY
+        # ----------------------------------------------------
+
+        buffer = io.BytesIO()
+
+
+        fig.savefig(
+            buffer,
+            format="png",
+            dpi=150,
+            bbox_inches="tight"
+        )
+
+
+        plt.close(fig)
+
+
+        buffer.seek(0)
+
+
+        return StreamingResponse(
+
+            buffer,
+
+            media_type="image/png"
+        )
+
+
+    except HTTPException:
+
+        raise
+
+
+    except Exception as e:
+
+        traceback.print_exc()
+
+        raise HTTPException(
+
+            status_code=500,
+
+            detail=
+                f"Chart Error: {str(e)}"
+        )
+
+
+# ============================================================
+# DOWNLOAD EXISTING EXCEL FILE
+# ============================================================
+
+@app.get(
+    "/api/analytics/export"
+)
+def export_analytics_report():
+
+    try:
 
         if not os.path.exists(EXCEL_FILE):
 
@@ -458,10 +1490,6 @@ def export_analytics_report():
                     "Excel log file does not exist."
             )
 
-
-        # ----------------------------------------------------
-        # DOWNLOAD THE EXISTING FILE
-        # ----------------------------------------------------
 
         return FileResponse(
 
