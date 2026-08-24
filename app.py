@@ -1429,241 +1429,87 @@ def osi_chart():
 # EXPORT MYSQL DATA TO EXCEL
 # ============================================================
 
-@app.get(
-    "/api/analytics/export"
-)
+# ============================================================
+# EXPORT MYSQL DATA TO EXCEL
+# ============================================================
+
+# ============================================================
+# EXPORT MYSQL DATA TO EXCEL
+# ============================================================
+
+# ============================================================
+# EXPORT LOGS TO EXCEL
+# ============================================================
+
+@app.get("/api/analytics/export")
 def export_analytics_report():
 
     try:
 
+        # Read logs from MySQL
         df = read_reviews_from_mysql()
 
-
-        # Remove internal database ID from exported report
-
-        if "id" in df.columns:
-
-            df = df.drop(
-                columns=["id"]
-            )
-
-
         # ----------------------------------------------------
-        # CALCULATE SUMMARY
+        # CREATE ONLY THE REQUIRED LOGS COLUMNS
         # ----------------------------------------------------
 
-        total_reviews = len(df)
+        logs_df = pd.DataFrame({
 
+            "timestamp":
+                df["timestamp"],
 
-        if total_reviews > 0:
+            "symptom":
+                df["symptom"],
 
-            status_counts = (
+            "osi_layer":
+                df["osi_layer"],
 
-                df["status"]
+            "root_cause":
+                df["root_cause"],
 
-                .astype(str)
+            "confidence":
+                df["confidence"],
 
-                .str.strip()
+            "human_verified":
+                df["status"].apply(
+                    lambda status:
+                        True
+                        if str(status).strip().lower() == "accepted"
+                        else (
+                            "Edited"
+                            if str(status).strip().lower() == "edited"
+                            else False
+                        )
+                ),
 
-                .str.lower()
-
-                .value_counts()
-
-            )
-
-
-            accepted = int(
-                status_counts.get(
-                    "accepted",
-                    0
-                )
-            )
-
-
-            edited = int(
-                status_counts.get(
-                    "edited",
-                    0
-                )
-            )
-
-
-            rejected = int(
-                status_counts.get(
-                    "rejected",
-                    0
-                )
-            )
-
-
-        else:
-
-            accepted = 0
-            edited = 0
-            rejected = 0
-
-
-        acceptance_rate = (
-
-            round(
-                accepted /
-                total_reviews *
-                100,
-                2
-            )
-
-            if total_reviews > 0
-            else 0
-        )
-
-
-        edit_rate = (
-
-            round(
-                edited /
-                total_reviews *
-                100,
-                2
-            )
-
-            if total_reviews > 0
-            else 0
-        )
-
-
-        rejection_rate = (
-
-            round(
-                rejected /
-                total_reviews *
-                100,
-                2
-            )
-
-            if total_reviews > 0
-            else 0
-        )
-
-
-        # ----------------------------------------------------
-        # PERFORMANCE SUMMARY
-        # ----------------------------------------------------
-
-        df_summary = pd.DataFrame({
-
-            "Metric": [
-
-                "Total AI Diagnoses Reviewed",
-
-                "Accepted Count",
-
-                "Edited Count",
-
-                "Rejected Count",
-
-                "Acceptance Rate (%)",
-
-                "Edit Rate (%)",
-
-                "Rejection Rate (%)"
-
-            ],
-
-            "Value": [
-
-                total_reviews,
-
-                accepted,
-
-                edited,
-
-                rejected,
-
-                acceptance_rate,
-
-                edit_rate,
-
-                rejection_rate
-
-            ]
+            "review_notes":
+                df["notes"]
 
         })
 
-
         # ----------------------------------------------------
-        # OSI BREAKDOWN
-        # ----------------------------------------------------
-
-        if (
-            total_reviews > 0
-            and "osi_layer" in df.columns
-        ):
-
-            df_osi = (
-
-                df["osi_layer"]
-
-                .astype(str)
-
-                .str.strip()
-
-                .value_counts()
-
-                .reset_index()
-
-            )
-
-
-            df_osi.columns = [
-                "OSI Layer",
-                "Count"
-            ]
-
-        else:
-
-            df_osi = pd.DataFrame(
-                columns=[
-                    "OSI Layer",
-                    "Count"
-                ]
-            )
-
-
-        # ----------------------------------------------------
-        # CREATE EXCEL IN MEMORY
+        # CREATE EXCEL
         # ----------------------------------------------------
 
         output = io.BytesIO()
-
 
         with pd.ExcelWriter(
             output,
             engine="openpyxl"
         ) as writer:
 
-            df_summary.to_excel(
+            # ONLY ONE SHEET
+            logs_df.to_excel(
                 writer,
-                sheet_name="Performance Summary",
+                sheet_name="Logs",
                 index=False
             )
-
-
-            df_osi.to_excel(
-                writer,
-                sheet_name="OSI Layer Breakdown",
-                index=False
-            )
-
-
-            df.to_excel(
-                writer,
-                sheet_name="Audit Log Data",
-                index=False
-            )
-
 
         output.seek(0)
 
+        # ----------------------------------------------------
+        # RETURN EXCEL
+        # ----------------------------------------------------
 
         return StreamingResponse(
 
@@ -1675,24 +1521,17 @@ def export_analytics_report():
             ),
 
             headers={
-
                 "Content-Disposition":
                     "attachment; "
-                    "filename=NetSage_Model_Performance_Report.xlsx"
-
+                    "filename=NetSage_Logs.xlsx"
             }
-
         )
-
 
     except Exception as e:
 
         traceback.print_exc()
 
         raise HTTPException(
-
             status_code=500,
-
-            detail=
-                f"Export Error: {str(e)}"
+            detail=f"Export Error: {str(e)}"
         )
